@@ -26,6 +26,8 @@ void handle_init(AppContextRef ctx);
 void http_success(int32_t request_id, int http_status, DictionaryIterator* received, void* context);
 void http_failure(int32_t request_id, int http_status, void* context);
 void httpebble_error(int error_code);
+void window_load(Window* me);
+void window_unload(Window* me);
 Window window;
 TextLayer textlayer;
 TextLayer programlayer;
@@ -105,6 +107,59 @@ void handle_minute_tick(AppContextRef ctx, PebbleTickEvent *t) {
 	}
 }
 
+void window_load(Window* me) {
+	
+	text_layer_init(&backlayer, GRect(0, 138, 144, 30));
+  text_layer_set_text_color(&backlayer, GColorClear);
+  text_layer_set_background_color(&backlayer, GColorBlack);
+  text_layer_set_text_alignment(&backlayer, GTextAlignmentCenter);
+  text_layer_set_font(&backlayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_16)));
+  
+
+	progress_bar_layer_init(&progress_bar, GRect(22, 148, 100, 10));
+    
+	progress_bar_layer_set_range(&progress_bar, 0, 100);
+	
+  text_layer_init(&textlayer, GRect(0, 00, 144, 40));
+  text_layer_set_text_color(&textlayer, GColorClear);
+  text_layer_set_background_color(&textlayer, GColorBlack);
+  text_layer_set_text_alignment(&textlayer, GTextAlignmentCenter);
+  text_layer_set_font(&textlayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_22)));
+  text_layer_set_text(&textlayer, "CANAL+");
+  
+	
+text_layer_init(&g_DateLayer, GRect(0, 40, 144, 30));
+text_layer_set_text_color(&g_DateLayer, GColorClear);
+text_layer_set_background_color(&g_DateLayer, GColorBlack);
+text_layer_set_text_alignment(&g_DateLayer, GTextAlignmentCenter);
+text_layer_set_font(&g_DateLayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_22)));
+
+	
+text_layer_init(&programlayer, GRect(0, 70, 144, 68));
+text_layer_set_text_color(&programlayer, GColorClear);
+text_layer_set_background_color(&programlayer, GColorBlack);
+text_layer_set_text_alignment(&programlayer, GTextAlignmentCenter);
+text_layer_set_font(&programlayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_16)));
+
+	
+}
+
+void window_appear(Window* me) {
+	
+	layer_add_child(&window.layer, &backlayer.layer);
+	layer_add_child(&window.layer, (Layer*)&progress_bar);
+	layer_add_child(&window.layer, &textlayer.layer);
+	layer_add_child(&window.layer, &g_DateLayer.layer);
+	layer_add_child(&window.layer, &programlayer.layer);
+	
+}
+
+void window_unload(Window* me) {
+	
+	layer_remove_child_layers(window_get_root_layer(me));
+}
+
+
 // Standard app initialisation
 
 void handle_init(AppContextRef ctx) {
@@ -117,43 +172,10 @@ void handle_init(AppContextRef ctx) {
 	
   resource_init_current_app(&APP_RESOURCES);
   window_init(&window, "CANAL+ Time");
+  window_set_window_handlers(&window, (WindowHandlers) {.load = window_load,.unload = window_unload, .appear = window_appear});
   window_stack_push(&window, true /* Animated */);
   window_set_fullscreen(&window, true);
-	
-  text_layer_init(&backlayer, GRect(0, 138, 144, 30));
-  text_layer_set_text_color(&backlayer, GColorClear);
-  text_layer_set_background_color(&backlayer, GColorBlack);
-  text_layer_set_text_alignment(&backlayer, GTextAlignmentCenter);
-  text_layer_set_font(&backlayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_16)));
-  layer_add_child(&window.layer, &backlayer.layer);
-
-	progress_bar_layer_init(&progress_bar, GRect(22, 148, 100, 10));
-    layer_add_child(&window.layer, (Layer*)&progress_bar);
-	progress_bar_layer_set_range(&progress_bar, 0, 100);
-	
-  text_layer_init(&textlayer, GRect(0, 00, 144, 40));
-  text_layer_set_text_color(&textlayer, GColorClear);
-  text_layer_set_background_color(&textlayer, GColorBlack);
-  text_layer_set_text_alignment(&textlayer, GTextAlignmentCenter);
-  text_layer_set_font(&textlayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_22)));
-  text_layer_set_text(&textlayer, "CANAL+");
-  layer_add_child(&window.layer, &textlayer.layer);
-	
-text_layer_init(&g_DateLayer, GRect(0, 40, 144, 30));
-text_layer_set_text_color(&g_DateLayer, GColorClear);
-text_layer_set_background_color(&g_DateLayer, GColorBlack);
-text_layer_set_text_alignment(&g_DateLayer, GTextAlignmentCenter);
-text_layer_set_font(&g_DateLayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_22)));
-layer_add_child(&window.layer, &g_DateLayer.layer);	
-	
-text_layer_init(&programlayer, GRect(0, 70, 144, 68));
-text_layer_set_text_color(&programlayer, GColorClear);
-text_layer_set_background_color(&programlayer, GColorBlack);
-text_layer_set_text_alignment(&programlayer, GTextAlignmentCenter);
-text_layer_set_font(&programlayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_16)));
-layer_add_child(&window.layer, &programlayer.layer);
-
-handle_minute_tick(ctx,NULL);
+  handle_minute_tick(ctx,NULL);
 }
 
 void http_failure(int32_t request_id, int http_status, void* context) {
