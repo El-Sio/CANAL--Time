@@ -3,6 +3,7 @@
 #include "pebble_app.h"
 #include "pebble_fonts.h"
 #include "http.h"
+#include "util.h"
 
 //Set this to true to compile for Android
 #define ANDROID false
@@ -15,8 +16,6 @@
 
 //Unique Random Stuff to identify one app from another with Httpebble
 #define HTTP_COOKIE 42695678
-#define REFRESH 2
-//Get the results every REFRESH minutes
 	
 PBL_APP_INFO(MY_UUID, "CANAL+ Time", "CANAL+", 1, 0, RESOURCE_ID_IMAGE_MENU_ICON, APP_INFO_WATCH_FACE);
 
@@ -32,19 +31,33 @@ TextLayer programlayer;
 PblTm g_Now;       
 TextLayer g_DateLayer;
 TextLayer backlayer;
-int i = 0;
+int ELAPSED = 0;
+int DURATION = 0;
+int Progress = 0;
+//Do I need to fetch current program again ?
+bool REFRESH = true;
 
-// we need a static buffer for string_format_time
+//Date formatting
 #define _DATE_BUF_LEN 26
 static char _DATE_BUFFER[_DATE_BUF_LEN];
 #define DATE_FORMAT "%R"
 
+	//Handles API returns : gives you current program name, elapsed time since start and duration {"1":"Program Name","2":elapsed,"3":duration}
 void http_success(int32_t request_id, int http_status, DictionaryIterator* received, void* context) {
   if (request_id != HTTP_COOKIE) {
     return;
   }
 	Tuple* tuple1 = dict_find(received, 1);
+	Tuple* tuple2 = dict_find(received, 2);
+	Tuple* tuple3 = dict_find(received, 3);
+	DURATION = tuple3->value->int32;
+	ELAPSED = tuple2->value->int32;
+	float d = (ELAPSED / DURATION)*100;
+	Progress = (int)d;
+	text_layer_set_text(&backlayer, itoa(Progress));
 	text_layer_set_text(&programlayer,tuple1->value->cstring);
+	
+	REFRESH = false;
 }
 
 void get_current_program() {
@@ -53,13 +66,18 @@ void get_current_program() {
 	DictionaryIterator* dict;
   	HTTPResult  result = http_out_get("http://japansio.info/api/program.php", HTTP_COOKIE, &dict);
 	if (result != HTTP_OK) {
-    	text_layer_set_text(&programlayer, "No Data");
 		httpebble_error(result);
+		//Something went wrong with the request, fecth program again next minute
+		REFRESH = true;
     	return;
 	}
+	
 	dict_write_cstring(dict, 1, "1");
 	result = http_out_send();
+	
   	if (result != HTTP_OK) {
+		//Something went wrong with the request, fecth program again next minute
+		REFRESH = true;
     	httpebble_error(result);
     return;
   }
@@ -76,10 +94,14 @@ void handle_minute_tick(AppContextRef ctx, PebbleTickEvent *t) {
   // formant and render the date string on the date layer
   string_format_time(_DATE_BUFFER, _DATE_BUF_LEN, DATE_FORMAT, &g_Now);
   text_layer_set_text(&g_DateLayer, _DATE_BUFFER);
-  i +=1;
-  if(i==REFRESH) {
+  
+  ELAPSED +=1;
+float d = (ELAPSED / DURATION)*100;
+	Progress = (int)d;
+    text_layer_set_text(&backlayer, itoa(Progress));
+//if it is time to get next program or previosu httprequest failed, get the current program
+  if((ELAPSED>=DURATION)||REFRESH) {
 		get_current_program();
-		i = 0;
 	}
 }
 
@@ -98,15 +120,14 @@ void handle_init(AppContextRef ctx) {
   window_stack_push(&window, true /* Animated */);
   window_set_fullscreen(&window, true);
 	
-  text_layer_init(&backlayer, GRect(0, 00, 144, 30));
+  text_layer_init(&backlayer, GRect(0, 138, 144, 30));
   text_layer_set_text_color(&backlayer, GColorClear);
   text_layer_set_background_color(&backlayer, GColorBlack);
   text_layer_set_text_alignment(&backlayer, GTextAlignmentCenter);
   text_layer_set_font(&backlayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_16)));
-  text_layer_set_text(&backlayer, "Maintenant sur");
   layer_add_child(&window.layer, &backlayer.layer);
-  
-	text_layer_init(&textlayer, GRect(0, 30, 144, 40));
+	
+  text_layer_init(&textlayer, GRect(0, 00, 144, 40));
   text_layer_set_text_color(&textlayer, GColorClear);
   text_layer_set_background_color(&textlayer, GColorBlack);
   text_layer_set_text_alignment(&textlayer, GTextAlignmentCenter);
@@ -114,18 +135,14 @@ void handle_init(AppContextRef ctx) {
   text_layer_set_text(&textlayer, "CANAL+");
   layer_add_child(&window.layer, &textlayer.layer);
 	
-/* 
- * initialize the date layer
- */
-text_layer_init(&g_DateLayer, GRect(0, 70, 144, 30));
+text_layer_init(&g_DateLayer, GRect(0, 40, 144, 30));
 text_layer_set_text_color(&g_DateLayer, GColorClear);
 text_layer_set_background_color(&g_DateLayer, GColorBlack);
 text_layer_set_text_alignment(&g_DateLayer, GTextAlignmentCenter);
 text_layer_set_font(&g_DateLayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_22)));
 layer_add_child(&window.layer, &g_DateLayer.layer);	
-//initialize program layer
 	
-text_layer_init(&programlayer, GRect(0, 100, 144, 68));
+text_layer_init(&programlayer, GRect(0, 70, 144, 68));
 text_layer_set_text_color(&programlayer, GColorClear);
 text_layer_set_background_color(&programlayer, GColorBlack);
 text_layer_set_text_alignment(&programlayer, GTextAlignmentCenter);
@@ -136,7 +153,8 @@ handle_minute_tick(ctx,NULL);
 }
 
 void http_failure(int32_t request_id, int http_status, void* context) {
-  httpebble_error(http_status >= 1000 ? http_status - 1000 : http_status);
+  	REFRESH = true;
+	httpebble_error(http_status >= 1000 ? http_status - 1000 : http_status);
 }
 
 void pbl_main(void *params) {
@@ -208,6 +226,5 @@ void httpebble_error(int error_code) {
       strcpy(error_message, "HTTP_ERROR_UNKNOWN");
     }
   }
-
   text_layer_set_text(&programlayer, error_message);
 }
