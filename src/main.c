@@ -4,6 +4,7 @@
 #include "pebble_fonts.h"
 #include "http.h"
 #include "util.h"
+#include "progress_bar.h"
 
 //Set this to true to compile for Android
 #define ANDROID false
@@ -33,9 +34,11 @@ TextLayer g_DateLayer;
 TextLayer backlayer;
 int ELAPSED = 0;
 int DURATION = 0;
-int Progress = 0;
 //Do I need to fetch current program again ?
 bool REFRESH = true;
+
+//progress bar attempt
+static ProgressBarLayer progress_bar;
 
 //Date formatting
 #define _DATE_BUF_LEN 26
@@ -52,9 +55,8 @@ void http_success(int32_t request_id, int http_status, DictionaryIterator* recei
 	Tuple* tuple3 = dict_find(received, 3);
 	DURATION = tuple3->value->int32;
 	ELAPSED = tuple2->value->int32;
-	float d = (ELAPSED / DURATION)*100;
-	Progress = (int)d;
-	text_layer_set_text(&backlayer, itoa(Progress));
+	progress_bar_layer_set_range(&progress_bar, 0, DURATION);
+    progress_bar_layer_set_value(&progress_bar, ELAPSED);
 	text_layer_set_text(&programlayer,tuple1->value->cstring);
 	
 	REFRESH = false;
@@ -96,9 +98,7 @@ void handle_minute_tick(AppContextRef ctx, PebbleTickEvent *t) {
   text_layer_set_text(&g_DateLayer, _DATE_BUFFER);
   
   ELAPSED +=1;
-float d = (ELAPSED / DURATION)*100;
-	Progress = (int)d;
-    text_layer_set_text(&backlayer, itoa(Progress));
+  progress_bar_layer_set_value(&progress_bar, ELAPSED);
 //if it is time to get next program or previosu httprequest failed, get the current program
   if((ELAPSED>=DURATION)||REFRESH) {
 		get_current_program();
@@ -126,6 +126,10 @@ void handle_init(AppContextRef ctx) {
   text_layer_set_text_alignment(&backlayer, GTextAlignmentCenter);
   text_layer_set_font(&backlayer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CUSTOM_CANALBOLD_16)));
   layer_add_child(&window.layer, &backlayer.layer);
+
+	progress_bar_layer_init(&progress_bar, GRect(22, 148, 100, 10));
+    layer_add_child(&window.layer, (Layer*)&progress_bar);
+	progress_bar_layer_set_range(&progress_bar, 0, 100);
 	
   text_layer_init(&textlayer, GRect(0, 00, 144, 40));
   text_layer_set_text_color(&textlayer, GColorClear);
